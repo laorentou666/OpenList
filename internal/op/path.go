@@ -50,6 +50,8 @@ func GetStorageAndActualPathByMountPath(rawPath, mountPath string) (storage driv
 		actualPath = "/"
 	}
 	return storage, utils.FixAndCleanPath(actualPath), nil
+}
+
 // GetStorageVirtualMountPath returns the deterministic virtual mount path
 // without advancing the balanced-storage counter.
 func GetStorageVirtualMountPath(rawPath string) (string, error) {
