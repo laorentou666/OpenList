@@ -27,11 +27,14 @@ jobs:
         with:
           go-version: "1.27.0"
 
-      - name: Embed rolling frontend
-        run: bash build.sh dev web
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          FRONTEND_REPO: ${{ vars.FRONTEND_REPO }}
+      - name: Embed frontend v4.2.6
+        run: |
+          curl -fsSL --retry 3 https://github.com/OpenListTeam/OpenList-Frontend/releases/download/v4.2.6/openlist-frontend-dist-v4.2.6.tar.gz -o dist.tar.gz
+          echo "eb620950a07dd081c5470a91361bde018ffd6a3cefb5b9a11b0f24f07960b444  dist.tar.gz" | sha256sum -c -
+          rm -rf public/dist
+          mkdir -p public/dist
+          tar -xzf dist.tar.gz -C public/dist
+          test -f public/dist/index.html
 
       - name: Test combined offline-download changes
         run: >-
@@ -53,7 +56,7 @@ jobs:
             github.com/OpenListTeam/OpenList/v4/internal/conf.GitAuthor=laorentou666/OpenList combined build
             github.com/OpenListTeam/OpenList/v4/internal/conf.GitCommit=$git_commit
             github.com/OpenListTeam/OpenList/v4/internal/conf.Version=combined
-            github.com/OpenListTeam/OpenList/v4/internal/conf.WebVersion=rolling
+            github.com/OpenListTeam/OpenList/v4/internal/conf.WebVersion=v4.2.6
           output: openlist$ext
 
       - name: Verify executable
