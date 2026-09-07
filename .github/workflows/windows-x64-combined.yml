@@ -1,0 +1,68 @@
+name: Build combined Windows x64
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - build/windows-x64-combined
+
+permissions:
+  contents: read
+
+concurrency:
+  group: windows-x64-combined-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Windows x64 with frontend
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout combined branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Setup Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
+        with:
+          go-version: "1.27.0"
+
+      - name: Embed rolling frontend
+        run: bash build.sh dev web
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          FRONTEND_REPO: ${{ vars.FRONTEND_REPO }}
+
+      - name: Test combined offline-download changes
+        run: >-
+          go test
+          ./internal/offline_download/tool
+          ./internal/offline_download/transmission
+          ./internal/offline_download/halalcloud_open
+          ./drivers/halalcloud_open
+
+      - name: Build Windows x64 executable
+        uses: OpenListTeam/cgo-actions@6fcace5934c36d70503dba06e2396bb58b766130 # v1.2.5
+        with:
+          targets: windows-amd64
+          flags: -ldflags=
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          out-dir: build
+          x-flags: |
+            github.com/OpenListTeam/OpenList/v4/internal/conf.BuiltAt=$built_at
+            github.com/OpenListTeam/OpenList/v4/internal/conf.GitAuthor=laorentou666/OpenList combined build
+            github.com/OpenListTeam/OpenList/v4/internal/conf.GitCommit=$git_commit
+            github.com/OpenListTeam/OpenList/v4/internal/conf.Version=combined
+            github.com/OpenListTeam/OpenList/v4/internal/conf.WebVersion=rolling
+          output: openlist$ext
+
+      - name: Verify executable
+        run: test -s build/openlist.exe
+
+      - name: Upload executable
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: openlist-windows-x64-combined
+          path: build/openlist.exe
+          if-no-files-found: error
+          retention-days: 14
