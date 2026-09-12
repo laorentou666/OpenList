@@ -15,28 +15,54 @@ concurrency:
 
 jobs:
   build:
-    name: Windows x64 with frontend
+    name: Windows x64 with custom frontend
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 60
     steps:
-      - name: Checkout combined branch
+      - name: Checkout backend
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Checkout frontend (feat-mkv-subtitles)
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          repository: laorentou666/OpenList-Frontend
+          ref: feat-mkv-subtitles
+          path: _frontend
+          fetch-depth: 0
 
       - name: Setup Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
         with:
           go-version: "1.27.0"
 
-      - name: Embed frontend v4.2.6
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24.20.0"
+
+      - uses: pnpm/action-setup@v4
+        name: Install pnpm
+        with:
+          run_install: false
+          package_json_file: _frontend/package.json
+
+      - name: Build frontend from source
+        working-directory: _frontend
         run: |
-          curl -fsSL --retry 3 https://github.com/OpenListTeam/OpenList-Frontend/releases/download/v4.2.6/openlist-frontend-dist-v4.2.6.tar.gz -o dist.tar.gz
-          echo "eb620950a07dd081c5470a91361bde018ffd6a3cefb5b9a11b0f24f07960b444  dist.tar.gz" | sha256sum -c -
+          chmod +x build.sh
+          ./build.sh --dev --skip-i18n --compress
+
+      - name: Embed frontend into backend
+        run: |
           rm -rf public/dist
           mkdir -p public/dist
-          tar -xzf dist.tar.gz -C public/dist
+          tar -xzf _frontend/dist/openlist-frontend-dist-*.tar.gz -C public/dist
           test -f public/dist/index.html
+          frontend_version=$(cat _frontend/dist/VERSION)
+          echo "FRONTEND_VERSION=${frontend_version}" >> "$GITHUB_ENV"
+          echo "Frontend version: ${frontend_version}"
 
-      - name: Test combined offline-download changes
+      - name: Test offline-download changes
         run: >-
           go test
           ./internal/offline_download/tool
@@ -56,7 +82,7 @@ jobs:
             github.com/OpenListTeam/OpenList/v4/internal/conf.GitAuthor=laorentou666/OpenList combined build
             github.com/OpenListTeam/OpenList/v4/internal/conf.GitCommit=$git_commit
             github.com/OpenListTeam/OpenList/v4/internal/conf.Version=combined
-            github.com/OpenListTeam/OpenList/v4/internal/conf.WebVersion=v4.2.6
+            github.com/OpenListTeam/OpenList/v4/internal/conf.WebVersion=${{ env.FRONTEND_VERSION }}
           output: openlist$ext
 
       - name: Verify executable
